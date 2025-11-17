@@ -61,7 +61,7 @@ output_file = "results/test.png"
 
 xlabel = "Aridity (A)"
 ylabel = "Forest Cover (C)"
-title = "Forest.Savanna Model"
+title = "Forest-Savanna Model"
 
 # Optional: Werte für Farblegende
 cbar_label = "State (-1: low cover, 1: high cover)"
