@@ -1,5 +1,7 @@
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
 
 def forest_cover_derivative(C_crit, x, r, C, A):
@@ -70,7 +72,7 @@ Direction_sparse=(forest_cover_derivative(C_crit_sparse,x,r,CC_sparse,AA_sparse)
 # Plot settings
 # -------------------------------
 figsize = (8, 6)
-cmap = "coolwarm_r"
+cmap = ListedColormap(["#008143", "#ff9900"])
 output_file = "results/test.png"
 output_file_arrows = "results/test_arrows.png"
 
@@ -86,7 +88,7 @@ cbar_label = "State (-1: low cover, 1: high cover)"
 # -------------------------------
 plt.figure(figsize=figsize)
 mesh = plt.pcolormesh(AA, CC, State, shading="auto", cmap=cmap)
-plt.pcolormesh(AA, CC,State, shading='auto', cmap='coolwarm_r')#, norm=norm)
+plt.pcolormesh(AA, CC,State, shading='auto', cmap=cmap)#, norm=norm)
 plt.plot(A,C_crit,color='white')
 plt.plot([0,calc_A_F(x,r,m,b)],[calc_C_F(x,r),calc_C_F(x,r)],color='white')
 plt.scatter([calc_A_F(x,r,m,b)],[calc_C_F(x,r)],color='white')
@@ -96,14 +98,20 @@ plt.ylim(0,1)
 plt.xlabel(xlabel)
 plt.ylabel(ylabel)
 plt.title(title)
-cbar = plt.colorbar(mesh)
-cbar.set_label(cbar_label)
-
+# cbar = plt.colorbar(mesh)
+# cbar.set_label(cbar_label)
+legend_handles = [
+    matplotlib.patches.Patch(color=cmap.colors[0], label="Forest"),
+    matplotlib.patches.Patch(color=cmap.colors[1], label="Savanna")
+]
+plt.legend(handles=legend_handles, title="State", loc="upper right")
+plt.tight_layout()
 plt.tight_layout()
 plt.savefig(output_file, dpi=300)
 # plt.show()
 
 plt.quiver(AA_sparse,CC_sparse, 0*np.ones_like(AA_sparse), Direction_sparse)
 
-plt.tight_layout()
+
+
 plt.savefig(output_file_arrows, dpi=300)
