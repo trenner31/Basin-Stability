@@ -32,7 +32,7 @@ def forest_cover(C_crit, x, r, m, b, C, A):
 
 def calc_C_crit(A,m,b):
     """Critical forest cover threshold."""
-    return A*m+b
+    return np.maximum(A*m+b,0)
 
 def calc_C_F(x,r):
     return(1-x/r)
@@ -40,6 +40,8 @@ def calc_C_F(x,r):
 def calc_A_F(x,r,m,b):
     return (calc_C_F(x,r)-b)/m
 
+def calc_U(x,r,C_crit,C):
+    return x/2*C**2+ (C>C_crit)*(r/3 * (C**3-C_crit**3) - r/2 *(C**2-C_crit**2))
 # -------------------------------
 # Parameters
 # -------------------------------
@@ -72,9 +74,10 @@ Direction_sparse=(forest_cover_derivative(C_crit_sparse,x,r,CC_sparse,AA_sparse)
 # Plot settings
 # -------------------------------
 figsize = (8, 6)
-cmap = ListedColormap(["#008143", "#ff9900"])
+cmap = ListedColormap(["#ff9900","#008143"])
 output_file = "results/test.png"
 output_file_arrows = "results/test_arrows.png"
+output_file_potential = "results/test_potential.png"
 
 xlabel = "Aridity (A)"
 ylabel = "Forest Cover (C)"
@@ -98,20 +101,56 @@ plt.ylim(0,1)
 plt.xlabel(xlabel)
 plt.ylabel(ylabel)
 plt.title(title)
+ticks =  [calc_A_F(x,r,m,b)]
+labels = [ r"$A_{crit}$"]
+plt.xticks(ticks, labels)
+ticks = list(plt.yticks()[0]) + [calc_C_F(x,r)]
+labels = [*plt.yticks()[1], r"$C_F=$"+format(calc_C_F(x,r),".1f")]
+plt.yticks(ticks, labels)
 # cbar = plt.colorbar(mesh)
 # cbar.set_label(cbar_label)
 legend_handles = [
-    matplotlib.patches.Patch(color=cmap.colors[0], label="Forest"),
-    matplotlib.patches.Patch(color=cmap.colors[1], label="Savanna")
+    matplotlib.patches.Patch(color=cmap.colors[0], label="Savanna"),
+    matplotlib.patches.Patch(color=cmap.colors[1], label="Forest")
 ]
 plt.legend(handles=legend_handles, title="State", loc="upper right")
 plt.tight_layout()
-plt.tight_layout()
+
 plt.savefig(output_file, dpi=300)
 # plt.show()
 
 plt.quiver(AA_sparse,CC_sparse, 0*np.ones_like(AA_sparse), Direction_sparse)
 
-
-
+plt.tight_layout()
 plt.savefig(output_file_arrows, dpi=300)
+
+plt.cla()
+A_range=np.linspace(0,calc_A_F(x,r,m,b)*1.2,7)
+colors=[
+    "#bc2d05",
+    "#ff9900",
+    "#eaff00",
+    "#44ff00",
+    "#0fb300",
+    "#26a200",
+    "#115a00",
+    ]
+for A_int,i,col in zip(A_range,range(7),reversed(colors)):
+    C_crit_int=calc_C_crit(A_int,m,b)
+    plt.plot(C,calc_U(x,r,C_crit_int,C)+i*3e-3, label=r'A='+format(A_int/calc_A_F(x,r,m,b), ".1f")+r'$A_{crit}$', color=col)
+    plt.scatter(C_crit_int,calc_U(x,r,C_crit_int,C_crit_int)+i*3e-3, color=col)
+plt.plot([calc_C_F(x,r),calc_C_F(x,r)],[-0.15,0.25], linestyle='--', color='black')
+plt.plot([0,0],[-0.15,0.25], linestyle='--',color='black')
+
+ticks = list(plt.xticks()[0]) + [0.0, calc_C_F(x,r)]
+labels = [*plt.xticks()[1], r"$C_S=$"+format(0.0,".1f"), r"$C_F=$"+format(calc_C_F(x,r),".1f")]
+plt.xticks(ticks, labels)
+plt.xlim(-0.05,1)
+plt.ylim(-0.15,0.25)
+plt.scatter(10,10,color='black', label=r'$C_{crit}(A)$')
+plt.legend(loc='upper left')
+plt.xlabel('C')
+plt.ylabel('Potential')
+plt.title(title)
+plt.tight_layout()
+plt.savefig(output_file_potential, dpi=300, bbox_inches='tight')
