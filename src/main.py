@@ -101,7 +101,7 @@ def make_plot_arrows(A,C,func_cover,func_cover_derivative,func_crit,C_F,resoluti
 
     return fig,ax
 
-def make_plot_potential(A_range,func_crit,func_potential,A_crit,C_F,colors,xlabel=None,ylabel=None,title=None,figsize=None,):
+def make_plot_potential(A_range,C,func_crit,func_potential,A_crit,C_F,colors,xlabel=None,ylabel=None,title=None,figsize=None,):
 
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -201,6 +201,7 @@ fig.savefig(output_file_arrows, dpi=300)
 plt.close()
 
 fig,_ = make_plot_potential(A_range=A_range,
+                            C=C,
                             colors=colors,
                             func_crit=partial(calc_C_crit,m=m,b=b),
                             func_potential=partial(calc_U,x=x,r=r),
