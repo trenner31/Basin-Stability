@@ -16,7 +16,6 @@ def forest_cover_derivative(C_crit, x, r, C, A):
 
     return result
 
-
 def forest_cover(C_crit, x, r, m, b, C, A):
     """Forest cover state function."""
     C = np.asarray(C)
@@ -28,7 +27,6 @@ def forest_cover(C_crit, x, r, m, b, C, A):
     result[mask] = 1
 
     return result
-
 
 def calc_C_crit(A,m,b):
     """Critical forest cover threshold."""
@@ -43,40 +41,95 @@ def calc_A_crit(x,r,m,b):
 def calc_U(x,r,C_crit,C):
     return x/2*C**2+ (C>C_crit)*(r/3 * (C**3-C_crit**3) - r/2 *(C**2-C_crit**2))
 
-def make_plot_noarrows(figsize,A,C,func_cover,func_crit,cmap):
-            # detect global variable use
-        import inspect
-        globals_used = set(make_plot_noarrows.__code__.co_names) - set(locals())
-        print(globals_used)
-        AA, CC = np.meshgrid(A, C)
-        C_crit=func_crit(A)
-        State=func_cover(C_crit=C_crit,C=CC,A=AA)
-        fig, ax = plt.subplots(figsize=figsize)
-        ax.pcolormesh(AA, CC,State, shading='auto', cmap=cmap)
-        plt.plot(A,C_crit,color='white')
-        plt.plot([0,calc_A_crit(x,r,m,b)],[calc_C_F(x,r),calc_C_F(x,r)],color='white')
-        # plt.scatter([calc_A_crit(x,r,m,b)],[calc_C_F(x,r)],color='white')
-        # plt.plot([calc_A_crit(x,r,m,b),calc_A_crit(x,r,m,b)],[0,1],linestyle='--',color='white')
-        # plt.plot([0,1.3],[calc_C_F(x,r),calc_C_F(x,r)],linestyle='--',color='white')
-        # plt.ylim(0,1)
-        # plt.xlabel(xlabel)
-        # plt.ylabel(ylabel)
-        # plt.title(title)
-        # ticks =  [calc_A_crit(x,r,m,b)]
-        # labels = [ r"$A_{crit}$"]
-        # plt.xticks(ticks, labels)
-        # ticks = list(plt.yticks()[0]) + [calc_C_F(x,r)]
-        # labels = [*plt.yticks()[1], r"$C_F=$"+format(calc_C_F(x,r),".1f")]
-        # plt.yticks(ticks, labels)
-        # # cbar = plt.colorbar(mesh)
-        # # cbar.set_label(cbar_label)
-        # legend_handles = [
-        #     matplotlib.patches.Patch(color=cmap.colors[0], label="Savanna"),
-        #     matplotlib.patches.Patch(color=cmap.colors[1], label="Forest")
-        # ]
-        # plt.legend(handles=legend_handles, title="State", loc="upper right")
-        plt.tight_layout()
-        return fig
+def make_plot_noarrows(A,C,func_cover,func_crit,C_F,cmap=ListedColormap(['lightgray','grey']),xlabel=None,ylabel=None,title=None,figsize=None):
+        
+    AA, CC = np.meshgrid(A, C)
+    C_crit=func_crit(A)
+    A_crit=A[np.argmin(abs(C_crit-C_F))]
+    State=func_cover(C_crit=C_crit,C=CC,A=AA)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.pcolormesh(AA, CC,State, shading='auto', cmap=cmap)
+    ax.plot(A,C_crit,color='white')
+    ax.plot([0,A_crit],[C_F,C_F],color='white')
+    
+    ax.plot([A_crit,A_crit],[0,1],linestyle='--',color='white')
+    ax.plot([0,np.max(A)],[C_F,C_F],linestyle='--',color='white')
+
+    ax.scatter([A_crit],[C_F],color='white')
+    
+    xticks =  [A_crit]
+    xlabels = [ r"$A_{crit}$"]
+    ax.set_xticks(xticks, xlabels)
+    yticks = list(ax.get_yticks()) + [C_F]
+    ylabels = [*ax.get_yticklabels(), r"$C_F=$"+format(C_F,".1f")]
+    ax.set_yticks(yticks, ylabels)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    fig.suptitle(title)
+
+    ax.set_ylim(0,1)
+
+    legend_handles = [
+        matplotlib.patches.Patch(color=cmap.colors[0], label="Savanna"),
+        matplotlib.patches.Patch(color=cmap.colors[1], label="Forest")
+    ]
+    ax.legend(handles=legend_handles, title="State", loc="upper right")
+    fig.tight_layout()
+    
+    return fig,ax
+
+def make_plot_arrows(A,C,func_cover,func_cover_derivative,func_crit,C_F,resolution_sparse=20,cmap=ListedColormap(['lightgray','grey']),xlabel=None,ylabel=None,title=None,figsize=None):
+        
+    fig,ax=make_plot_noarrows(figsize=figsize,
+                    A=A, C=C,
+                    func_cover=func_cover,
+                    func_crit=func_crit,
+                    C_F=C_F,
+                    cmap=cmap,
+                    xlabel=xlabel,
+                    ylabel=ylabel,
+                    title=title,)
+    
+    A_sparse=np.linspace(np.min(A),np.max(A),resolution_sparse)
+    C_sparse=np.linspace(np.min(C),np.max(C),resolution_sparse)
+    C_crit_sparse=func_crit(A_sparse)
+    AA_sparse, CC_sparse = np.meshgrid(A_sparse, C_sparse)
+    Direction_sparse=func_cover_derivative(C_crit=C_crit_sparse,C=CC_sparse,A=AA_sparse)
+    ax.quiver(AA_sparse,CC_sparse, 0*np.ones_like(AA_sparse), Direction_sparse)
+
+    return fig,ax
+
+def make_plot_potential(A_range,func_crit,func_potential,A_crit,C_F,colors,xlabel=None,ylabel=None,title=None,figsize=None,):
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    for A_int,i,col in zip(A_range,range(len(A_range)),colors):
+        C_crit_int=func_crit(A_int)
+        ax.plot(C,func_potential(C_crit=C_crit_int,C=C)+i*3e-3, label=r'A='+format(A_int/A_crit, ".1f")+r'$A_{crit}$', color=col)
+        ax.scatter(C_crit_int,func_potential(C_crit=C_crit_int,C=C_crit_int)+i*3e-3, color=col)
+    ax.axvline(C_F, linestyle='--', color='black')
+    ax.axvline(0, linestyle='--',color='black')
+
+    xticks = list(ax.get_xticks()) + [0.0, C_F]
+    xlabels = [*ax.get_xticklabels(), r"$C_S=$"+format(0.0,".1f"), r"$C_F=$"+format(C_F,".1f")]
+ 
+    ax.set_xticks(xticks, xlabels, rotation=35)
+    ax.set_xlim(-3e-2,1)
+
+    circle_marker = matplotlib.lines.Line2D([], [], marker='o',color='black',markersize=6,linestyle='None',label=r'$C_{crit}(A)$')
+    handles,_x = ax.get_legend_handles_labels()
+    handles.append(circle_marker)
+    ax.legend(handles=handles, loc='upper left')
+    
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    fig.suptitle(title)
+    fig.tight_layout()
+
+    return fig,ax
+
 # -------------------------------
 # Parameters
 # -------------------------------
@@ -93,23 +146,22 @@ C_min, C_max = 0, 1.0
 A = np.linspace(A_min, A_max, resolution)
 C = np.linspace(C_min, C_max, resolution)
 
-C_crit = calc_C_crit(A,m,b)
+A_range=np.linspace(0,calc_A_crit(x,r,m,b)*1.2,7)
 
-A_sparse=np.linspace(0,1.3,resolution_sparse)
-C_sparse=np.linspace(0,1.0,resolution_sparse)
-C_crit_sparse=calc_C_crit(A_sparse,m,b)
-
-# Create mesh grid
-# AA, CC = np.meshgrid(A, C)
-# AA_sparse, CC_sparse = np.meshgrid(A_sparse, C_sparse)
-
-# State=forest_cover(C_crit,x,r,m,b,CC,AA)
-# Direction_sparse=(forest_cover_derivative(C_crit_sparse,x,r,CC_sparse,AA_sparse))
 # -------------------------------
 # Plot settings
 # -------------------------------
 figsize = (8, 6)
 cmap = ListedColormap(["#ff9900","#006635"])
+colors=[
+    "#115a00",
+    "#26a200",
+    "#0fb300",
+    "#44ff00",
+    "#eaff00",
+    "#ff9900",
+    "#bc2d05",
+    ]
 output_file = "results/test.png"
 output_file_arrows = "results/test_arrows.png"
 output_file_potential = "results/test_potential.png"
@@ -118,79 +170,46 @@ xlabel = "Aridity (A)"
 ylabel = "Forest Cover (C)"
 title = "Forest-Savanna Model"
 
-# # Optional: Werte für Farblegende
-# cbar_label = "State (-1: low cover, 1: high cover)"
-
 # -------------------------------
-# Plot
+# Plotting
 # -------------------------------
-# plt.figure(figsize=figsize)
-# mesh = plt.pcolormesh(AA, CC, State, shading="auto", cmap=cmap)
-# plt.pcolormesh(AA, CC,State, shading='auto', cmap=cmap)#, norm=norm)
-# plt.plot(A,C_crit,color='white')
-# plt.plot([0,calc_A_crit(x,r,m,b)],[calc_C_F(x,r),calc_C_F(x,r)],color='white')
-# plt.scatter([calc_A_crit(x,r,m,b)],[calc_C_F(x,r)],color='white')
-# plt.plot([calc_A_crit(x,r,m,b),calc_A_crit(x,r,m,b)],[0,1],linestyle='--',color='white')
-# plt.plot([0,1.3],[calc_C_F(x,r),calc_C_F(x,r)],linestyle='--',color='white')
-# plt.ylim(0,1)
-# plt.xlabel(xlabel)
-# plt.ylabel(ylabel)
-# plt.title(title)
-# ticks =  [calc_A_crit(x,r,m,b)]
-# labels = [ r"$A_{crit}$"]
-# plt.xticks(ticks, labels)
-# ticks = list(plt.yticks()[0]) + [calc_C_F(x,r)]
-# labels = [*plt.yticks()[1], r"$C_F=$"+format(calc_C_F(x,r),".1f")]
-# plt.yticks(ticks, labels)
-# # cbar = plt.colorbar(mesh)
-# # cbar.set_label(cbar_label)
-# legend_handles = [
-#     matplotlib.patches.Patch(color=cmap.colors[0], label="Savanna"),
-#     matplotlib.patches.Patch(color=cmap.colors[1], label="Forest")
-# ]
-# plt.legend(handles=legend_handles, title="State", loc="upper right")
-# plt.tight_layout()
-fig=make_plot_noarrows(figsize=figsize,
-                       A=A, C=C,
-                       func_cover=partial(forest_cover,x=x,r=r,m=m,b=b),
-                       func_crit=partial(calc_C_crit,m=m,b=b),
-                       func_stable=partial(calc_C_F,x=x,r=r)
-                       cmap=cmap,)
+fig,_=make_plot_noarrows(A=A, C=C,
+                         func_cover=partial(forest_cover,x=x,r=r,m=m,b=b),
+                         func_crit=partial(calc_C_crit,m=m,b=b),
+                         C_F=calc_C_F(x=x,r=r),
+                         cmap=cmap,
+                         xlabel=xlabel,
+                         ylabel=ylabel,
+                         title=title,
+                         figsize=figsize,
+                        )
 fig.savefig(output_file, dpi=300)
-# plt.show()
+plt.close()
 
-# plt.quiver(AA_sparse,CC_sparse, 0*np.ones_like(AA_sparse), Direction_sparse)
+fig,_=make_plot_arrows(A=A, C=C,
+                       func_cover=partial(forest_cover,x=x,r=r,m=m,b=b),
+                       func_cover_derivative=partial(forest_cover_derivative, x=x, r=r),
+                       func_crit=partial(calc_C_crit,m=m,b=b),
+                       C_F=calc_C_F(x=x,r=r),
+                       cmap=cmap,
+                       xlabel=xlabel,
+                       ylabel=ylabel,
+                       title=title,
+                       figsize=figsize,
+                       )
+fig.savefig(output_file_arrows, dpi=300)
+plt.close()
 
-# plt.tight_layout(,
-# plt.savefig(output_file_arrows, dpi=300)
-
-# plt.cla()
-# A_range=np.linspace(0,calc_A_crit(x,r,m,b)*1.2,7)
-# colors=[
-#     "#bc2d05",
-#     "#ff9900",
-#     "#eaff00",
-#     "#44ff00",
-#     "#0fb300",
-#     "#26a200",
-#     "#115a00",
-#     ]
-# for A_int,i,col in zip(A_range,range(7),reversed(colors)):
-#     C_crit_int=calc_C_crit(A_int,m,b)
-#     plt.plot(C,calc_U(x,r,C_crit_int,C)+i*3e-3, label=r'A='+format(A_int/calc_A_crit(x,r,m,b), ".1f")+r'$A_{crit}$', color=col)
-#     plt.scatter(C_crit_int,calc_U(x,r,C_crit_int,C_crit_int)+i*3e-3, color=col)
-# plt.plot([calc_C_F(x,r),calc_C_F(x,r)],[-0.15,0.25], linestyle='--', color='black')
-# plt.plot([0,0],[-0.15,0.25], linestyle='--',color='black')
-
-# ticks = list(plt.xticks()[0]) + [0.0, calc_C_F(x,r)]
-# labels = [*plt.xticks()[1], r"$C_S=$"+format(0.0,".1f"), r"$C_F=$"+format(calc_C_F(x,r),".1f")]
-# plt.xticks(ticks, labels)
-# plt.xlim(-0.05,1)
-# plt.ylim(-0.15,0.25)
-# plt.scatter(10,10,color='black', label=r'$C_{crit}(A)$')
-# plt.legend(loc='upper left')
-# plt.xlabel('C')
-# plt.ylabel('Potential')
-# plt.title(title)
-# plt.tight_layout()
-# plt.savefig(output_file_potential, dpi=300, bbox_inches='tight')
+fig,_ = make_plot_potential(A_range=A_range,
+                            colors=colors,
+                            func_crit=partial(calc_C_crit,m=m,b=b),
+                            func_potential=partial(calc_U,x=x,r=r),
+                            A_crit=calc_A_crit(x=x,r=r,m=m,b=b),
+                            C_F=calc_C_F(x=x,r=r),
+                            xlabel='Forest Cover (C)',
+                            ylabel='Potential (U)',
+                            title=title,
+                            figsize=figsize,
+                            )
+fig.savefig(output_file_potential, dpi=300)
+plt.close()
