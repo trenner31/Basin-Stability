@@ -168,7 +168,7 @@ colors2=[
     "#eaff00",
     "#bc2d05",
     ]
-cmap = LinearSegmentedColormap.from_list("green_yellow_red", colors2).reversed()
+cmap2 = LinearSegmentedColormap.from_list("green_yellow_red", colors2).reversed()
 
 output_file = "results/test.png"
 output_file_arrows = "results/test_arrows.png"
