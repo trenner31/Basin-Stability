@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap, Normalize, TwoSlopeNorm
 from functools import partial
+from scipy.integrate import odeint
 
 def forest_cover_derivative(C_crit, x, r, C, A):
     """Compute derivative of forest cover."""
@@ -162,6 +163,13 @@ colors=[
     "#ff9900",
     "#bc2d05",
     ]
+colors2=[
+    "#115a00",
+    "#eaff00",
+    "#bc2d05",
+    ]
+cmap = LinearSegmentedColormap.from_list("green_yellow_red", colors2).reversed()
+
 output_file = "results/test.png"
 output_file_arrows = "results/test_arrows.png"
 output_file_potential = "results/test_potential.png"
@@ -214,3 +222,35 @@ fig,_ = make_plot_potential(A_range=A_range,
                             )
 fig.savefig(output_file_potential, dpi=300)
 plt.close()
+
+
+
+
+# ##### TODO SAUBER
+
+# def make_plot_trajectories(A_range,figsize=None):
+#     fig,axs = plt.subplots(figsize)
+#     fig.tight_layout()
+#     return fig,axs
+
+# critical = 0.5 
+# norm = TwoSlopeNorm(
+#     vmin=0.0,
+#     vcenter=0.3,
+#     vmax=1.0
+# )
+# def dcdt(C,t,A):
+#     return forest_cover_derivative(C_crit=calc_C_crit(A=A,m=m,b=b),x=x,r=r,C=C,A=A)
+
+# A_range=np.linspace(A_min,A_max,5)
+# fig,axs=plt.subplots(len(A_range), figsize=(6,12), sharex=True)
+# for A,ax in zip(A_range,axs):
+#     dc=partial(dcdt,A=A)
+#     t = np.linspace(0, 7, 200)
+#     for C0 in np.linspace(0,1,10):
+#         C_solved = odeint(dc, C0, t)
+#         ax.plot(t,C_solved,label=str(C0)+str(forest_cover(C_crit=calc_C_crit(A=A,m=m,b=b),x=x,r=r,m=m,b=b,C=C0,A=A)),color=cmap(norm(C0)))
+#     ax.set_ylabel('C(t)')
+# axs[-1].set_xlabel('t')
+
+# fig.savefig('results/tests.png')
