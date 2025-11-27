@@ -42,6 +42,17 @@ def calc_A_crit(x,r,m,b):
 def calc_U(x,r,C_crit,C):
     return x/2*C**2+ (C>C_crit)*(r/3 * (C**3-C_crit**3) - r/2 *(C**2-C_crit**2))
 
+def calc_linear_stability(x,r,C_crit,C):
+    """dF(C)/dC derivative of dC/dt with C_F=1-x/r, result is eigenvalue, because of r>x>0 is eigenvalue<0 ->stability, always comes back to initial state, result is how fast it goes back
+    use positive value for x-r ->abs(x-r)"""
+    return(C>C_crit)*(abs(x-r))
+
+def calc_basin_stability(A,A_crit,C_crit):
+    """basin=stability volume c_crit to 1 (100% coverage), A<A_crit because basin exists only if forest is stable"""
+    return(A<A_crit)*(1-C_crit)
+    
+
+
 def make_plot_noarrows(A,C,func_cover,func_crit,C_F,cmap=ListedColormap(['lightgray','grey']),xlabel=None,ylabel=None,title=None,figsize=None):
         
     AA, CC = np.meshgrid(A, C)
@@ -131,6 +142,46 @@ def make_plot_potential(A_range,C,func_crit,func_potential,A_crit,C_F,colors,xla
 
     return fig,ax
 
+def make_plot_basin_vs_linear_stability(A, basin_stability, linear_stability, A_crit):
+    """comparison of basin and linear stability with 2 y-axes"""
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+
+    # Axis 1 (left): Basin Stability (green)
+    color = 'tab:green'
+    ax1.set_xlabel('Aridity (A)', fontsize=14)
+    ax1.set_ylabel('Basin Stability (Safety Volume)', color=color, fontsize=14)
+    ax1.plot(A, basin_stability, color=color, linewidth=4, label='Basin Stability')
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.set_ylim(-0.05, 1.05)
+
+    # Axis 2 (right): Linear Stability (blue)
+    ax2 = ax1.twinx()  
+    color = 'tab:blue'
+    ax2.set_ylabel('Linear Stability (Recovery Speed)', color=color, fontsize=14)
+    ax2.plot(A, linear_stability, color=color, linestyle='--', linewidth=3, label='Linear Stability')
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylim(-0.05, 1.05) 
+    max_val = np.max(linear_stability)
+    top_limit = max(1.05, max_val * 1.1) 
+    ax2.set_ylim(-0.05, top_limit)
+
+    # Markierungen
+    ax1.axvline(x=A_crit, color='red', linestyle=':', linewidth=2)
+    ax1.text(A_crit, -0.05, r'$A_{crit}$ (Tipping Point)', color='red', ha='center', va='top', 
+         transform=ax1.get_xaxis_transform(), fontsize=12)
+
+    # Erklärende Texte
+    ax1.text(0.05, 0.2, 'Safety Volume decreases!', color='green', fontweight='bold', fontsize=12)
+    ax2.text(0.05, 0.85, 'Recovery Speed constant', color='blue', fontweight='bold', fontsize=12)
+
+    # Titel und Layout
+    plt.title('Linear vs. Basin Stability', fontsize=16)
+    ax1.grid(True, linestyle='--', alpha=0.5)
+    fig.tight_layout()
+    
+    # Rückgabe des Figure-Objekts und der Achsen
+    return fig, (ax1, ax2)
+    
 # -------------------------------
 # Parameters
 # -------------------------------
@@ -148,6 +199,7 @@ A = np.linspace(A_min, A_max, resolution)
 C = np.linspace(C_min, C_max, resolution)
 
 A_range=np.linspace(0,calc_A_crit(x,r,m,b)*1.2,7)
+A_crit_value=calc_A_crit(x, r, m, b)
 
 # -------------------------------
 # Plot settings
@@ -173,10 +225,17 @@ cmap2 = LinearSegmentedColormap.from_list("green_yellow_red", colors2).reversed(
 output_file = "results/test.png"
 output_file_arrows = "results/test_arrows.png"
 output_file_potential = "results/test_potential.png"
+output_file_comparison = "results/test_comparison.png"
+
 
 xlabel = "Aridity (A)"
 ylabel = "Forest Cover (C)"
 title = "Forest-Savanna Model"
+
+
+
+
+
 
 # -------------------------------
 # Plotting
@@ -221,6 +280,18 @@ fig,_ = make_plot_potential(A_range=A_range,
                             figsize=figsize,
                             )
 fig.savefig(output_file_potential, dpi=300)
+plt.close()
+
+fig,_ = make_plot_basin_vs_linear_stability(A=A,
+                                            #C_F=calc_C_F(x=x,r=r),
+                                            A_crit=calc_A_crit(x=x,r=r,m=m,b=b),
+                                            basin_stability=calc_basin_stability(A=A, A_crit=calc_A_crit(x=x,r=r,m=m,b=b), C_crit=calc_C_crit(A=A, m=m, b=b)),
+                                            linear_stability=calc_linear_stability(x=x, r=r, C_crit=calc_C_crit(A=A, m=m, b=b), C=calc_C_F(x=x,r=r)),
+                                            #colors=colors,
+                                            #title=title,
+                                            #figsize=figsize,
+                                            )
+fig.savefig(output_file_comparison, dpi=300)
 plt.close()
 
 
