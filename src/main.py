@@ -57,18 +57,39 @@ def make_plot_noarrows(A,C,func_cover,func_crit,C_F,cmap=ListedColormap(['lightg
         
     AA, CC = np.meshgrid(A, C)
     C_crit=func_crit(A)
-    A_crit=A[np.argmin(abs(C_crit-C_F))]
+    # Berechne den Tipping Point Index
+    idx_crit = np.argmin(abs(C_crit-C_F))
+    A_crit = A[idx_crit]
+    
     State=func_cover(C_crit=C_crit,C=CC,A=AA)
 
     fig, ax = plt.subplots(figsize=figsize)
     ax.pcolormesh(AA, CC,State, shading='auto', cmap=cmap)
-    ax.plot(A,C_crit,color='white')
-    ax.plot([0,A_crit],[C_F,C_F],color='white')
     
+    # 1. Die Linie Plotten (ohne Label für Legende)
+    ax.plot(A, C_crit, color='white', linewidth=2)
+    
+    # 2. Text DIREKT auf die Linie schreiben
+    # Wir suchen einen Punkt ca. in der Mitte zwischen 0 und A_crit
+    text_idx = int(idx_crit * 0.5) 
+    text_x = A[text_idx]
+    text_y = C_crit[text_idx]
+    
+    # Text einfügen: rotation passt den Textwinkel an die Linie an (ggf. anpassen)
+    ax.text(text_x, text_y + 0.02, r'$C_{crit}(A)$', 
+            color='white', 
+            fontsize=12, 
+            fontweight='bold', 
+            rotation=28, # Winkel anpassen, falls es bei dir zu steil/flach ist
+            ha='center', 
+            va='bottom')
+
+    # Hilfslinien
+    ax.plot([0,A_crit],[C_F,C_F],color='white')
     ax.plot([A_crit,A_crit],[0,1],linestyle='--',color='white')
     ax.plot([0,np.max(A)],[C_F,C_F],linestyle='--',color='white')
 
-    ax.scatter([A_crit],[C_F],color='white')
+    ax.scatter([A_crit],[C_F],color='white', zorder=5)
     
     xticks =  [A_crit]
     xlabels = [ r"$A_{crit}$"]
@@ -83,11 +104,12 @@ def make_plot_noarrows(A,C,func_cover,func_crit,C_F,cmap=ListedColormap(['lightg
 
     ax.set_ylim(0,1)
 
+    # Legende nur noch für die Zustände (Farben)
     legend_handles = [
-        matplotlib.patches.Patch(color=cmap.colors[0], label="Savanna"),
-        matplotlib.patches.Patch(color=cmap.colors[1], label="Forest")
+        matplotlib.patches.Patch(color=cmap.colors[0], label="Savanna State"),
+        matplotlib.patches.Patch(color=cmap.colors[1], label="Forest State")
     ]
-    ax.legend(handles=legend_handles, title="State", loc="upper right")
+    ax.legend(handles=legend_handles, loc="lower right", framealpha=0.8)
     fig.tight_layout()
     
     return fig,ax
@@ -170,18 +192,31 @@ def make_plot_basin_vs_linear_stability(A, basin_stability, linear_stability, A_
     ax1.text(A_crit, -0.05, r'$A_{crit}$ (Tipping Point)', color='red', ha='center', va='top', 
          transform=ax1.get_xaxis_transform(), fontsize=12)
 
-    # Erklärende Texte
-    ax1.text(0.05, 0.2, 'Safety Volume decreases!', color='green', fontweight='bold', fontsize=12)
-    ax2.text(0.05, 0.85, 'Recovery Speed constant', color='blue', fontweight='bold', fontsize=12)
+    # --- DYNAMISCHE TEXT-PLATZIERUNG ---
+    # 1. Linear Stability Text (Blau)
+    y_linear = linear_stability[0]
+    ax2.text(A[int(len(A)*0.3)], y_linear + 0.05, 
+             'Recovery Speed constant', 
+             color='tab:blue', fontweight='bold', fontsize=12, ha='left')
+
+    # 2. Basin Stability Text (Grün) - DEUTLICH TIEFER
+    # Wir nehmen einen Punkt ziemlich am Anfang (15% des Weges)
+    idx_pos = np.argmin(np.abs(A - (A_crit * 0.15))) 
+    x_basin = A[idx_pos]
+    y_basin = basin_stability[idx_pos]
+    
+    # Das schiebt den Text weiter in den "freien Raum" unter der Kurve
+    ax1.text(x_basin, y_basin - 0.4, 
+             'Safety Volume decreases!', 
+             color='tab:green', fontweight='bold', fontsize=12, 
+             ha='left', va='top') 
 
     # Titel und Layout
     plt.title('Linear vs. Basin Stability', fontsize=16)
     ax1.grid(True, linestyle='--', alpha=0.5)
     fig.tight_layout()
     
-    # Rückgabe des Figure-Objekts und der Achsen
     return fig, (ax1, ax2)
-    
 # -------------------------------
 # Parameters
 # -------------------------------
