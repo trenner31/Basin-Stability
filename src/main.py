@@ -51,7 +51,8 @@ def calc_basin_stability(A,A_crit,C_crit):
     """basin=stability volume c_crit to 1 (100% coverage), A<A_crit because basin exists only if forest is stable"""
     return(A<A_crit)*(1-C_crit)
     
-
+def dcdt(C,t,A):
+    return forest_cover_derivative(C_crit=calc_C_crit(A=A,m=m,b=b),x=x,r=r,C=C,A=A)
 
 def make_plot_noarrows(A,C,func_cover,func_crit,C_F,cmap=ListedColormap(['lightgray','grey']),xlabel=None,ylabel=None,title=None,figsize=None):
         
@@ -217,6 +218,22 @@ def make_plot_basin_vs_linear_stability(A, basin_stability, linear_stability, A_
     fig.tight_layout()
     
     return fig, (ax1, ax2)
+
+def make_plot_trajectories(A_range,C0_range,func_C_crit,C_F,t=np.linspace(0,10,5),figsize=None):
+    fig,axs = plt.subplots(len(A_range),figsize=figsize, sharex=True)
+    for A,ax in zip(A_range, axs):
+        dcdt_fixedA = partial(dcdt,A=A)
+        center = func_C_crit(A)*(func_C_crit(A)<C_F)+(func_C_crit(A)>C_F)
+        norm = normation(vmin=0.0,vcenter=center,vmax=1.0)
+        cmap3 = cmap2(vmin=0.0,vcenter=center,vmax=1.0)
+        for C0 in C0_range:
+            C_solved = odeint(dcdt_fixedA, C0, t,)
+            ax.plot(t,C_solved,label=rf"$C_0=${C0:.1f}",color=cmap3(norm(C0)),)
+        ax.set_ylabel('C(t)')
+    axs[-1].set_xlabel('t')
+    fig.tight_layout()
+    return fig,axs
+
 # -------------------------------
 # Parameters
 # -------------------------------
@@ -255,13 +272,27 @@ colors2=[
     "#eaff00",
     "#bc2d05",
     ]
-cmap2 = LinearSegmentedColormap.from_list("green_yellow_red", colors2).reversed()
 
-output_file = "results/test.png"
-output_file_arrows = "results/test_arrows.png"
-output_file_potential = "results/test_potential.png"
-output_file_comparison = "results/test_comparison.png"
+def cmap2(vmin, vmax, vcenter):
+    if vcenter == vmin:
+        return LinearSegmentedColormap.from_list("green_yellow", colors2[:-1]).reversed()
+    elif vcenter == vmax:
+        return LinearSegmentedColormap.from_list("yellow_red", colors2[1:]).reversed()
+    else:
+        return LinearSegmentedColormap.from_list("green_yellow_red", colors2).reversed()
 
+def normation(vmin,vcenter,vmax):
+    if vcenter == vmin or vcenter == vmax:
+        return Normalize(vmin=vmin, vmax=vmax)
+    else:
+        return TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+
+
+output_file = "results/noarrows.png"
+output_file_arrows = "results/arrows.png"
+output_file_potential = "results/potential.png"
+output_file_comparison = "results/comparison.png"
+output_file_trajectories = "results/trajectories.png"
 
 xlabel = "Aridity (A)"
 ylabel = "Forest Cover (C)"
@@ -329,34 +360,13 @@ fig,_ = make_plot_basin_vs_linear_stability(A=A,
 fig.savefig(output_file_comparison, dpi=300)
 plt.close()
 
+fig,_ = make_plot_trajectories(A_range=np.linspace(A_min,A_max,5),
+                               C0_range=np.linspace(0,1,11),
+                               func_C_crit=partial(calc_C_crit,m=m,b=b),
+                               C_F=calc_C_F(x=x,r=r),
+                               t=np.linspace(0, 7, 200),
+                               figsize=(6,12),
+                               )
+fig.savefig(output_file_trajectories, dpi=300)
+plt.close()
 
-
-
-# ##### TODO SAUBER
-
-# def make_plot_trajectories(A_range,figsize=None):
-#     fig,axs = plt.subplots(figsize)
-#     fig.tight_layout()
-#     return fig,axs
-
-# critical = 0.5 
-# norm = TwoSlopeNorm(
-#     vmin=0.0,
-#     vcenter=0.3,
-#     vmax=1.0
-# )
-# def dcdt(C,t,A):
-#     return forest_cover_derivative(C_crit=calc_C_crit(A=A,m=m,b=b),x=x,r=r,C=C,A=A)
-
-# A_range=np.linspace(A_min,A_max,5)
-# fig,axs=plt.subplots(len(A_range), figsize=(6,12), sharex=True)
-# for A,ax in zip(A_range,axs):
-#     dc=partial(dcdt,A=A)
-#     t = np.linspace(0, 7, 200)
-#     for C0 in np.linspace(0,1,10):
-#         C_solved = odeint(dc, C0, t)
-#         ax.plot(t,C_solved,label=str(C0)+str(forest_cover(C_crit=calc_C_crit(A=A,m=m,b=b),x=x,r=r,m=m,b=b,C=C0,A=A)),color=cmap(norm(C0)))
-#     ax.set_ylabel('C(t)')
-# axs[-1].set_xlabel('t')
-
-# fig.savefig('results/tests.png')
