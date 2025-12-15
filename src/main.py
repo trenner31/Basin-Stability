@@ -148,7 +148,7 @@ def make_plot_potential(A_range,C,func_crit,func_potential,A_crit,C_F,colors,xla
     ax.axvline(0, linestyle='--',color='black')
 
     xticks = list(ax.get_xticks()) + [0.0, C_F]
-    xlabels = [*ax.get_xticklabels(), r"$C_S=$"+format(0.0,".1f"), r"$C_F=$"+format(C_F,".1f")]
+    xlabels = [*ax.get_xticklabels(), r"$C_S=$"+format(0.0,".2f"), r"$C_F=$"+format(C_F,".2f")]
  
     ax.set_xticks(xticks, xlabels, rotation=35)
     ax.set_xlim(-3e-2,1)
@@ -167,54 +167,57 @@ def make_plot_potential(A_range,C,func_crit,func_potential,A_crit,C_F,colors,xla
 
 def make_plot_basin_vs_linear_stability(A, basin_stability, linear_stability, A_crit):
     """comparison of basin and linear stability with 2 y-axes"""
-    fig, ax1 = plt.subplots(figsize=(10, 6))
+    fig, ax1 = plt.subplots(figsize=(8, 5))
 
     # Axis 1 (left): Basin Stability (green)
     color = 'tab:green'
-    ax1.set_xlabel('Aridity (A)', fontsize=14)
-    ax1.set_ylabel('Basin Stability (Safety Volume)', color=color, fontsize=14)
-    ax1.plot(A, basin_stability, color=color, linewidth=4, label='Basin Stability')
-    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.set_xlabel('Aridity (A)',)
+    ax1.set_ylabel('Basin Stability (Safety Volume)')
+    ax1.plot(A, basin_stability, color=color, label='Basin Stability')
+    # ax1.tick_params(axis='y', labelcolor=color)
     ax1.set_ylim(-0.05, 1.05)
 
     # Axis 2 (right): Linear Stability (blue)
     ax2 = ax1.twinx()  
     color = 'tab:blue'
-    ax2.set_ylabel('Linear Stability (Recovery Speed)', color=color, fontsize=14)
-    ax2.plot(A, linear_stability, color=color, linestyle='--', linewidth=3, label='Linear Stability')
-    ax2.tick_params(axis='y', labelcolor=color)
-    ax2.set_ylim(-0.05, 1.05) 
+    ax2.set_ylabel('Linear Stability (Recovery Speed)')
+    ax2.plot(A, linear_stability, color=color, linestyle='--', label='Linear Stability')
+    # ax2.tick_params(axis='y', labelcolor=color)
+    # ax2.set_ylim(-0.05, 1.05) 
     max_val = np.max(linear_stability)
     top_limit = max(1.05, max_val * 1.1) 
     ax2.set_ylim(-0.05, top_limit)
 
     # Markierungen
-    ax1.axvline(x=A_crit, color='red', linestyle=':', linewidth=2)
-    ax1.text(A_crit, -0.05, r'$A_{crit}$ (Tipping Point)', color='red', ha='center', va='top', 
-         transform=ax1.get_xaxis_transform(), fontsize=12)
+    ax1.axvline(x=A_crit, color='red', linestyle=':', linewidth=2, label=r'$A_{crit}$ (Tipping Point)')
+    # ax1.text(A_crit, -0.05, r'$A_{crit}$ (Tipping Point)', color='red', ha='center', va='top', 
+    #      transform=ax1.get_xaxis_transform(), fontsize=12)
 
-    # --- DYNAMISCHE TEXT-PLATZIERUNG ---
-    # 1. Linear Stability Text (Blau)
-    y_linear = linear_stability[0]
-    ax2.text(A[int(len(A)*0.3)], y_linear + 0.05, 
-             'Recovery Speed constant', 
-             color='tab:blue', fontweight='bold', fontsize=12, ha='left')
+    # # --- DYNAMISCHE TEXT-PLATZIERUNG ---
+    # # 1. Linear Stability Text (Blau)
+    # y_linear = linear_stability[0]
+    # ax2.text(A[int(len(A)*0.3)], y_linear + 0.05, 
+    #          'Recovery Speed constant', 
+    #          color='tab:blue', fontweight='bold', fontsize=12, ha='left')
 
-    # 2. Basin Stability Text (Grün) - DEUTLICH TIEFER
-    # Wir nehmen einen Punkt ziemlich am Anfang (15% des Weges)
-    idx_pos = np.argmin(np.abs(A - (A_crit * 0.15))) 
-    x_basin = A[idx_pos]
-    y_basin = basin_stability[idx_pos]
+    # # 2. Basin Stability Text (Grün) - DEUTLICH TIEFER
+    # # Wir nehmen einen Punkt ziemlich am Anfang (15% des Weges)
+    # idx_pos = np.argmin(np.abs(A - (A_crit * 0.15))) 
+    # x_basin = A[idx_pos]
+    # y_basin = basin_stability[idx_pos]
     
-    # Das schiebt den Text weiter in den "freien Raum" unter der Kurve
-    ax1.text(x_basin, y_basin - 0.4, 
-             'Safety Volume decreases!', 
-             color='tab:green', fontweight='bold', fontsize=12, 
-             ha='left', va='top') 
+    # # Das schiebt den Text weiter in den "freien Raum" unter der Kurve
+    # ax1.text(x_basin, y_basin - 0.4, 
+    #          'Safety Volume decreases!', 
+    #          color='tab:green', fontweight='bold', fontsize=12, 
+    #          ha='left', va='top') 
 
     # Titel und Layout
     plt.title('Linear vs. Basin Stability', fontsize=16)
-    ax1.grid(True, linestyle='--', alpha=0.5)
+    # ax1.grid(True, linestyle='--', alpha=0.5)
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2,)
     fig.tight_layout()
     
     return fig, (ax1, ax2)
