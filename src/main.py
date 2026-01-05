@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap, Normalize, TwoSlopeNorm
 from functools import partial
 from scipy.integrate import odeint
+from scipy.optimize import brentq
+from multiprocessing import Pool
+import os
+from tqdm import tqdm
 
 def forest_cover_derivative(C_crit, x, r, C, A):
     """Compute derivative of forest cover."""
@@ -237,6 +241,7 @@ def make_plot_trajectories(A_range,C0_range,func_C_crit,C_F,t=np.linspace(0,10,5
     fig.tight_layout()
     return fig,axs
 
+
 # -------------------------------
 # Parameters
 # -------------------------------
@@ -252,6 +257,7 @@ C_min, C_max = 0, 1.0
 
 A = np.linspace(A_min, A_max, resolution)
 C = np.linspace(C_min, C_max, resolution)
+
 
 A_range=np.linspace(0,calc_A_crit(x,r,m,b)*1.2,7)
 A_crit_value=calc_A_crit(x, r, m, b)
@@ -372,4 +378,309 @@ fig,_ = make_plot_trajectories(A_range=np.linspace(A_min,A_max,5),
                                )
 fig.savefig(output_file_trajectories, dpi=300)
 plt.close()
+
+
+
+
+def r(P,r_m=0.3,h_P=0.5):
+    return P / (h_P+P) * r_m
+
+
+def egbert_tree_cover_derivative(T,P,K=90,m_A=0.15,h_A=10,m_f=0.11,h_f=64,p=7):
+    T=np.asarray(T)
+    P=np.asarray(P)
+    # dTdt = r(P) * T * (1 - T/K) - m_A * T * h_A / (T+h_A)
+    dTdt = r(P) * T * (1 - T/K) - m_A * T * h_A / (T+h_A) - m_f * T * h_f**p / (h_f**p+T**p)
+    return dTdt
+
+def egbert_tree_cover_mixed_derivative(T,P,K=90,m_A=0.15,h_A=10,m_f=0.11,h_f=64,p=7):
+    T=np.asarray(T)
+    P=np.asarray(P)
+    # dTdt = r(P) * T * (1 - T/K) - m_A * T * h_A / (T+h_A)
+    dTdt = (r(P) *  (1 - T/K) 
+            - m_A *  h_A / (T+h_A) * (1 - T/(T+h_A))
+            - m_f  * h_f**p / (h_f**p+T**p)) * (1 - p*T**p/(h_f**p+T**p))
+    return dTdt
+
+def F_prime_numeric(T,P,K=90,m_A=0.15,h_A=10,m_f=0.11,h_f=64,p=7, h=1e-8):
+    return (egbert_tree_cover_derivative(T=T+h,P=P) - egbert_tree_cover_derivative(T=T-h,P=P)) / (2*h)
+
+def egbert_precipitation_cover_derivative(T,P,r_p=0.01,P_d=3.5,b=0.3,K=90):
+    T=np.asarray(T)
+    P=np.asarray(P)
+    dPdt = r_p * ((P_d + b*T/K) - P)
+    return dPdt
+
+def odes(y, t):
+    p_i,t_i = y
+    dPdt = egbert_precipitation_cover_derivative(T=t_i,P=p_i)
+    dTdt = egbert_tree_cover_derivative(T=t_i,P=p_i)
+    return [dPdt, dTdt]
+
+def remove_epsilon_from_interval(intervals, c, eps):
+    """
+    Remove the ball [c-eps, c+eps] from interval [a,b].
+    Returns a list of resulting intervals (1 or 2 intervals).
+    """
+    intervals_out = []
+    for interval in intervals:
+        a,b=interval
+        left = max(a, c - eps)
+        right = min(b, c + eps)
+
+        
+
+        # Left part
+        if left > a:
+            intervals_out.append((a, left))
+
+        # Right part
+        if right < b:
+            intervals_out.append((right, b))
+
+    return intervals_out
+
+def oldfindroots(p,func_cover_derivative):
+    width=0.001
+    intervalls=[(0.0,1.0)]
+    roots=[]
+    intervalls=remove_epsilon_from_interval(intervalls,roots[-1],width)
+    
+    while intervalls:
+        interval=intervalls.pop(0)
+        try:
+            root = brentq(func_cover_derivative,*interval)
+            if root not in roots:
+                roots.append(root)
+                intervalls.extend(remove_epsilon_from_interval([interval],roots[-1],width))
+            print(intervalls)
+        except ValueError:
+            continue     
+    return (np.repeat(p,len(roots)),roots)
+
+def findroots(p):
+    func=partial(egbert_tree_cover_derivative,P=p)
+    interval_count=int(1e2)
+    grid=np.linspace(0.0,100.0,interval_count+1)
+    stableroots=[]
+    unstableroots=[]
+
+    if F_prime_numeric(T=0.0,P=p)<0: stableroots.append(0.0)
+    else: unstableroots.append(0.0)
+
+    for i in range(interval_count):
+        interval=grid[i:i+2]
+        try:
+            root = brentq(func,*interval)
+            if (root not in stableroots) and (root not in unstableroots):
+                if F_prime_numeric(T=root,P=p)<0: stableroots.append(root)
+                else: unstableroots.append(root)   
+        except ValueError:
+                continue    
+    return np.repeat(p,len(stableroots)),stableroots,np.repeat(p,len(unstableroots)),unstableroots
+
+def compute_ode_gaps_meshgrid(P_grid, T_grid, odes, pstable, stable, gaps, eps=1e-6):
+    results = np.empty(P_grid.shape, dtype=int)
+    for i in range(P_grid.shape[0]):
+        for j in range(P_grid.shape[1]):
+            p0 = P_grid[i,j]
+            t0 = T_grid[i,j]
+            sol = odeint(func=odes, y0=[p0,t0], t=np.linspace(0,10000,100))
+            mask = (pstable >= sol[-1, 0] - eps) & (pstable <= sol[-1, 0] + eps)
+            if np.any(np.abs(stable[mask] - sol[-1, 1]) <= eps):
+                if sol[-1,1]<gaps[0]:
+                    results[i,j]=1
+                elif sol[-1,1]<gaps[1]:
+                    results[i,j]=2
+                else:
+                    results[i,j]=3
+                    
+            else: results[i,j]=0
+    return results
+
+
+def worker_task(args, odes, pstable, stable, gaps, eps):
+    i, j, p0, t0 = args
+    sol = odeint(func=odes, y0=[p0, t0], t=np.linspace(0,1000,10000))
+    final_P, final_T = sol[-1]
+    mask = (pstable >= final_P - eps) & (pstable <= final_P + eps)
+    if np.any(np.abs(stable[mask] - final_T) <= eps):
+        if final_T < gaps[0]:
+            code = 1
+        elif final_T < gaps[1]:
+            code = 2
+        else:
+            code = 3
+    else:
+        code = 0
+    return (i, j, code)
+
+def compute_ode_gaps_meshgrid_parallel(P_grid, T_grid, odes, pstable, stable, gaps, eps=1e-6):
+    results = np.zeros(P_grid.shape, dtype=int)
+    
+    # Prepare tasks
+    tasks = [(i, j, P_grid[i,j], T_grid[i,j])
+             for i in range(P_grid.shape[0])
+             for j in range(P_grid.shape[1])]
+
+    # Partial to pass extra args
+    func = partial(worker_task, odes=odes, pstable=pstable, stable=stable, gaps=gaps, eps=eps)
+
+    # Run in parallel
+    with Pool(os.cpu_count()) as pool:
+        outputs = pool.map(func, tasks)
+
+    # Fill results
+    for i, j, code in outputs:
+        results[i,j] = code
+
+    return results
+
+def compute_ode_gaps_meshgrid_parallel_progress(P_grid, T_grid, odes, pstable, stable, gaps, eps=1e-6):
+    results = np.zeros(P_grid.shape, dtype=int)
+    
+    tasks = [(i, j, P_grid[i,j], T_grid[i,j])
+             for i in range(P_grid.shape[0])
+             for j in range(P_grid.shape[1])]
+
+    func = partial(worker_task, odes=odes, pstable=pstable, stable=stable, gaps=gaps, eps=eps)
+
+    with Pool(os.cpu_count()) as pool:
+        # Use imap_unordered for faster results and tqdm for progress
+        for i, (row, col, code) in enumerate(tqdm(pool.imap_unordered(func, tasks), total=len(tasks))):
+            results[row, col] = code
+
+    return results
+
+def make_plot_egbert(P,T,func_cover_derivative,func_precipitation_derivative,xlabel=None,ylabel=None,title=None,figsize=None):
+    fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)    
+    
+    PP, TT = np.meshgrid(P, T)
+    Direction_T=func_cover_derivative(T=TT,P=PP)
+    Direction_P=func_precipitation_derivative(T=TT,P=PP)
+    # print(func_cover_derivative(T=60,P=0.6),func_precipitation_derivative(T=60,P=0.6))
+    refinment=30
+    PP_fine, TT_fine = np.meshgrid(np.linspace(P[0],P[-1],len(P)*refinment), np.linspace(T[0],T[-1],len(T)*refinment))
+    Direction_T_fine=func_cover_derivative(T=TT_fine,P=PP_fine)
+
+    # ax.pcolormesh(PP_fine, TT_fine, np.sign(Direction_T_fine), shading='auto', cmap='coolwarm_r', alpha=1)
+    
+    # ax.quiver(PP,TT, Direction_P, Direction_T*0,color='blue', alpha=0.3)
+    # ax.quiver(PP,TT, Direction_P*0, (Direction_T),color='white', alpha=1.0)
+    inputs=np.linspace(P[0],P[-1],len(P)*refinment)
+    with Pool(os.cpu_count()) as pool:  # automatically uses all cores
+        results = pool.map(findroots, inputs)
+    pstable,stable,punstable,unstable=[],[],[],[]
+    for result in results:
+        ps,s,pu,u=result
+        pstable.extend(ps)
+        stable.extend(s)
+        punstable.extend(pu)
+        unstable.extend(u)
+    
+    stable = np.array(stable)
+    pstable = np.array(pstable)
+    stable_sort=np.sort(stable)
+    stable_diff=np.diff(stable_sort)
+    largest_gap_indices = np.argsort(stable_diff)[-2:]  # indices of the two largest gaps
+    values_in_gaps = np.sort([(stable_sort[i] + stable_sort[i+1])/2 for i in largest_gap_indices])
+    eps = 1e-1
+    Basin=compute_ode_gaps_meshgrid_parallel_progress(PP_fine,TT_fine,odes=odes,pstable=pstable,stable=stable,gaps=values_in_gaps, eps=eps)
+    colors = ['black', "#fa7970", "#faa356", "#77bdfb"]   # 'fa7970','77bdfb','7ce38b','cea5fb','faa356'
+    cmap = matplotlib.colors.ListedColormap(colors)
+    bounds = [0,1,2,3,4]  
+    norm = matplotlib.colors.BoundaryNorm(bounds, cmap.N)
+    ax.pcolormesh(PP_fine, TT_fine, Basin, cmap=cmap, norm=norm, shading='auto', alpha=0.8)
+    # for p0 in np.linspace(P[0],P[-1],len(P)*2)
+    #     for t0 in np.linspace(T[0],T[-1],len(T)*2):
+    #         sol = odeint(func=odes, y0=[p0,t0], t=np.linspace(0,1000,100))
+    #         # plt.plot(sol[:,0], sol[:,1], label=f'start={[4,0.2]}',color='pink')
+    #         mask = (pstable >= sol[-1, 0] - eps) & (pstable <= sol[-1, 0] + eps) 
+            
+            
+    #         # print(values_in_gaps)
+    #         if np.any(np.abs(stable[mask] - sol[-1, 1]) <= eps):
+    #             if sol[-1,1]<values_in_gaps[0]:
+    #                 color='black'
+    #             elif sol[-1,1]<values_in_gaps[1]:
+    #                 color='magenta'
+    #             else:
+    #                 color='cyan'
+                    
+    #         else: color='white'
+    #         ax.scatter(p0,t0, s=80, color=color, alpha=1.0)
+
+    ax.quiver(PP,TT, Direction_P/4.5, Direction_T/100,color='white', alpha=1.0, pivot='mid',)       
+    # for ptest in np.linspace(P[0],P[-1],len(P)*refinment):
+    #     print(ptest)
+    #     roottest=findroots(ptest,partial(func_cover_derivative,P=ptest))
+    #     
+    # ax.invert_xaxis()
+    ax.set_xlabel(r'Precipitation $(mm d^{-1})$')
+    ax.set_ylabel(r'Tree Cover')
+    for p0 in np.linspace(0.5,5,40):
+        if (p0==0.5) or (p0==5):
+            ts=np.linspace(1,100,30)
+        else:
+            ts=[2,100]
+        # print(p0)
+        for t0 in ts:
+                sol = odeint(func=odes, y0=[p0,t0], t=np.linspace(0,1000,10000))
+                ax.plot(sol[:,0],sol[:,1],color='white')     
+            # ax.scatter(p0,t0) 
+
+    ax.scatter(pstable,stable,color='black',s=20,zorder=100)
+    ax.scatter(punstable,unstable,color='white',s=20,zorder=101)
+
+    legend_handles = [
+        matplotlib.patches.Patch(color=cmap.colors[1], label=f"No Tree State {(100*np.count_nonzero(Basin == 1)/Basin.size):.1f}%"),
+        matplotlib.patches.Patch(color=cmap.colors[2], label=f"Savanna State {(100*np.count_nonzero(Basin == 2)/Basin.size):.1f}%"),
+        matplotlib.patches.Patch(color=cmap.colors[3], label=f"Forest State {(100*np.count_nonzero(Basin == 3)/Basin.size):.1f}%")
+    ]
+    ax.legend(handles=legend_handles, loc="upper left", framealpha=0.8)
+    
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    values=[np.count_nonzero(Basin == i)/Basin.size for i in range(1,4)]
+    labels=['No Tree State','Savanna State','Forest State']
+    colors=cmap.colors[1:4]
+    axins = inset_axes(
+        ax,
+        width="40%",      # relative to parent
+        height="40%",
+        loc="lower right",
+        borderpad=0
+    )
+    
+    from matplotlib.patches import FancyBboxPatch
+
+    
+
+    axins.pie(
+        values,
+        colors=colors,
+        startangle=90,
+        wedgeprops=dict(edgecolor="white"),
+        autopct=lambda pct: f"{pct:.1f}%" if pct > 0 else "",
+        textprops=dict(color="white", fontsize=9)
+    )
+
+    axins.set_aspect("equal")
+
+    # fig.tight_layout()
+    return fig,ax
+
+P_min, P_max = 0.5, 5.0
+T_min, T_max = 0, 100.2
+
+P = np.linspace(P_min, P_max, resolution_sparse*2)
+T = np.linspace(T_min, T_max, resolution_sparse*2) 
+if __name__ == '__main__':
+    fig.clear()
+    fig,_ = make_plot_egbert(P=P, T=T,
+                        func_cover_derivative=egbert_tree_cover_derivative,
+                        func_precipitation_derivative=egbert_precipitation_cover_derivative,
+                        figsize=(10,8),
+                        )
+    fig.savefig('results/tests.png', dpi=300)
+    plt.close()
 
