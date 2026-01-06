@@ -684,3 +684,135 @@ if __name__ == '__main__':
     fig.savefig('results/tests.png', dpi=300)
     plt.close()
 
+# MONTE CARLO #
+# -----------------------------------------------------------
+# NEU: Monte Carlo Funktionen (Einfach unten im Skript einfügen)
+# -----------------------------------------------------------
+
+def worker_task_mc(args, odes, gaps):
+    """
+    Hilfsfunktion für einen einzelnen Simulations-Schritt (für Parallelisierung).
+    Nutzt einfache Schwellenwerte (Gaps) zur Klassifizierung.
+    """
+    i, P0, T0 = args
+    
+    # Simulation: Wir integrieren lange genug (t=1000), um das Gleichgewicht zu finden
+    sol = odeint(func=odes, y0=[P0, T0], t=np.linspace(0, 1000, 100))
+    final_T = sol[-1, 1]
+    
+    # Klassifizierung anhand der Gaps
+    # Code 1: No Tree, Code 2: Savanna, Code 3: Forest
+    if final_T < gaps[0]:
+        code = 1
+    elif final_T < gaps[1]:
+        code = 2
+    else:
+        code = 3
+        
+    return (P0, T0, code)
+
+def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file=None, figsize=(12, 6)):
+    """
+    Führt die MC-Simulation aus und erstellt den Plot (Karte + Statistik).
+    """
+    print(f"Starte Monte Carlo Simulation mit {N_samples} Punkten...")
+    
+    # 1. Zufällige Startpunkte generieren
+    random_P = np.random.uniform(bounds_P[0], bounds_P[1], N_samples)
+    random_T = np.random.uniform(bounds_T[0], bounds_T[1], N_samples)
+    
+    tasks = [(i, random_P[i], random_T[i]) for i in range(N_samples)]
+    
+    # 2. Parallel rechnen
+    # Wir übergeben 'odes' und 'gaps' mit partial
+    func = partial(worker_task_mc, odes=odes, gaps=gaps)
+    
+    results = []
+    # Nutzt alle verfügbaren Kerne
+    with Pool(os.cpu_count()) as pool:
+        # tqdm zeigt einen Ladebalken, falls gewünscht
+        for res in tqdm(pool.imap_unordered(func, tasks), total=N_samples, desc="MC Sampling"):
+            results.append(res)
+            
+    # Ergebnisse entpacken
+    res_P = np.array([r[0] for r in results])
+    res_T = np.array([r[1] for r in results])
+    codes = np.array([r[2] for r in results])
+    
+    # 3. Plotten
+    fig, (ax_map, ax_bar) = plt.subplots(1, 2, figsize=figsize, gridspec_kw={'width_ratios': [2, 1]})
+    
+    # Masken für die Farben
+    mask_notree = (codes == 1)
+    mask_savanna = (codes == 2)
+    mask_forest = (codes == 3)
+    
+    # A) Linker Plot: Die Scatter-Karte
+    # alpha verringert, damit man Überlappungen sieht
+    ax_map.scatter(res_P[mask_notree], res_T[mask_notree], c='black', s=10, alpha=0.5, label='No Tree')
+    ax_map.scatter(res_P[mask_savanna], res_T[mask_savanna], c='orange', s=10, alpha=0.5, label='Savanna')
+    ax_map.scatter(res_P[mask_forest], res_T[mask_forest], c='forestgreen', s=10, alpha=0.5, label='Forest')
+    
+    ax_map.set_xlabel(r'Precipitation $P$ ($mm d^{-1}$)')
+    ax_map.set_ylabel(r'Tree Cover $T$')
+    ax_map.set_title(f'Monte Carlo Stabilitäts-Check (N={N_samples})')
+    ax_map.set_xlim(bounds_P)
+    ax_map.set_ylim(bounds_T)
+    ax_map.legend(loc='upper left')
+
+    # B) Rechter Plot: Die Statistik (Balken)
+    N = len(codes)
+    fractions = [np.sum(mask_notree)/N, np.sum(mask_savanna)/N, np.sum(mask_forest)/N]
+    
+    # Standardfehler: sqrt(p*(1-p)/N)
+    errors = [np.sqrt(f*(1-f)/N) for f in fractions]
+    
+    labels = ['No Tree', 'Savanna', 'Forest']
+    colors = ['black', 'orange', 'forestgreen']
+    
+    bars = ax_bar.bar(labels, fractions, yerr=errors, capsize=5, color=colors, alpha=0.8)
+    
+    # Prozentzahlen beschriften
+    for bar, frac in zip(bars, fractions):
+        height = bar.get_height()
+        ax_bar.text(bar.get_x() + bar.get_width()/2, height + 0.01, 
+                    f"{frac*100:.1f}%", ha='center', fontweight='bold')
+    
+    ax_bar.set_ylim(0, 1.1) # Etwas Platz oben lassen
+    ax_bar.set_ylabel(r'Basin Stability ($S_B$)')
+    ax_bar.set_title('Quantified Resilience')
+    ax_bar.grid(axis='y', linestyle='--', alpha=0.5)
+    
+    fig.tight_layout()
+    
+    if output_file:
+        fig.savefig(output_file, dpi=300)
+        print(f"Plot gespeichert unter: {output_file}")
+    
+    return fig
+if __name__ == '__main__':
+    # ... (dein bisheriger Code) ...
+
+    # -----------------------------------------------
+    # Ausführung des Monte Carlo Teils
+    # -----------------------------------------------
+    
+    # 1. Wir definieren die Grenzen für die Klassifizierung (Gaps)
+    # Diese Werte kommen aus der Analyse der Nullstellen (ca. 11.5 und 61.7)
+    # Wenn du sie exakt berechnet hast, nimm deine 'values_in_gaps' Variable.
+    mc_gaps = [11.5, 61.7] 
+    
+    # 2. Plot erstellen
+    make_plot_monte_carlo(
+        N_samples=2000,           # Anzahl der Punkte (je mehr, desto genauer)
+        bounds_P=(0.5, 5.0),      # Bereich für Niederschlag
+        bounds_T=(0, 100),        # Bereich für Baumdichte
+        odes=odes,                # Deine existierende odes-Funktion
+        gaps=mc_gaps,             # Die Schwellenwerte
+        output_file="results/monte_carlo_resilience.png"
+    )
+    
+    # Falls du das Fenster sehen willst:
+    plt.show()
+    
+    
