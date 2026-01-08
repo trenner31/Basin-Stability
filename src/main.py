@@ -675,7 +675,7 @@ T_min, T_max = 0, 100.2
 P = np.linspace(P_min, P_max, resolution_sparse*2)
 T = np.linspace(T_min, T_max, resolution_sparse*2) 
 if __name__ == '__main__':
-    fig.clear()
+    #fig.clear()
     fig,_ = make_plot_egbert(P=P, T=T,
                         func_cover_derivative=egbert_tree_cover_derivative,
                         func_precipitation_derivative=egbert_precipitation_cover_derivative,
@@ -685,8 +685,6 @@ if __name__ == '__main__':
     plt.close()
 
 # MONTE CARLO #
-# -----------------------------------------------------------
-# NEU: Monte Carlo Funktionen (Einfach unten im Skript einfügen)
 # -----------------------------------------------------------
 
 def worker_task_mc(args, odes, gaps):
@@ -791,9 +789,7 @@ def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file
     
     return fig
 if __name__ == '__main__':
-    # ... (dein bisheriger Code) ...
-
-    # -----------------------------------------------
+        # -----------------------------------------------
     # Ausführung des Monte Carlo Teils
     # -----------------------------------------------
     
@@ -812,7 +808,7 @@ if __name__ == '__main__':
         output_file="results/monte_carlo_resilience.png"
     )
     
-    # Falls du das Fenster sehen willst:
+   
     plt.show()
     
     
