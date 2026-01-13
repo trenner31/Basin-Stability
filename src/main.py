@@ -498,58 +498,67 @@ def compute_ode_gaps_meshgrid(P_grid, T_grid, odes, pstable, stable, gaps, eps=1
             else: results[i,j]=0
     return results
 
-
-def worker_task(args, odes, pstable, stable, gaps, eps):
-    i, j, p0, t0 = args
-    sol = odeint(func=odes, y0=[p0, t0], t=np.linspace(0,1000,10000))
-    final_P, final_T = sol[-1]
-    mask = (pstable >= final_P - eps) & (pstable <= final_P + eps)
-    if np.any(np.abs(stable[mask] - final_T) <= eps):
-        if final_T < gaps[0]:
-            code = 1
-        elif final_T < gaps[1]:
-            code = 2
-        else:
-            code = 3
-    else:
-        code = 0
-    return (i, j, code)
-
-def compute_ode_gaps_meshgrid_parallel(P_grid, T_grid, odes, pstable, stable, gaps, eps=1e-6):
-    results = np.zeros(P_grid.shape, dtype=int)
+def worker_task(args, odes, gaps):
+    """
+    Hilfsfunktion für einen einzelnen Simulations-Schritt (für Parallelisierung).
+    Nutzt einfache Schwellenwerte (Gaps) zur Klassifizierung.
+    """
+    i, P0, T0 = args
     
-    # Prepare tasks
-    tasks = [(i, j, P_grid[i,j], T_grid[i,j])
-             for i in range(P_grid.shape[0])
-             for j in range(P_grid.shape[1])]
+    # Simulation: Wir integrieren lange genug (t=1000), um das Gleichgewicht zu finden
+    sol = odeint(func=odes, y0=[P0, T0], t=np.linspace(0, 1000, 100))
+    final_T = sol[-1, 1]
+    
+    # Klassifizierung anhand der Gaps
+    # Code 1: No Tree, Code 2: Savanna, Code 3: Forest
+    if final_T < gaps[0]:
+        code = 1
+    elif final_T < gaps[1]:
+        code = 2
+    else:
+        code = 3
+        
+    return (i, P0, T0, code)
 
-    # Partial to pass extra args
-    func = partial(worker_task, odes=odes, pstable=pstable, stable=stable, gaps=gaps, eps=eps)
+# def compute_ode_gaps_meshgrid_parallel(P_grid, T_grid, odes, pstable, stable, gaps, eps=1e-6):
+#     results = np.zeros(P_grid.shape, dtype=int)
+    
+#     # Prepare tasks
+#     tasks = [(i, j, P_grid[i,j], T_grid[i,j])
+#              for i in range(P_grid.shape[0])
+#              for j in range(P_grid.shape[1])]
+    
+#     tasks = [(i, random_P[i], random_T[i]) for i in range(N_samples)]
 
-    # Run in parallel
-    with Pool(os.cpu_count()) as pool:
-        outputs = pool.map(func, tasks)
+#     # Partial to pass extra args
+#     func = partial(worker_task, odes=odes, gaps=gaps)
 
-    # Fill results
-    for i, j, code in outputs:
-        results[i,j] = code
+#     # Run in parallel
+#     with Pool(os.cpu_count()) as pool:
+#         outputs = pool.map(func, tasks)
 
-    return results
+#     # Fill results
+#     for i, j, code in outputs:
+#         results[i,j] = code
+
+#     return results
 
 def compute_ode_gaps_meshgrid_parallel_progress(P_grid, T_grid, odes, pstable, stable, gaps, eps=1e-6):
     results = np.zeros(P_grid.shape, dtype=int)
     
-    tasks = [(i, j, P_grid[i,j], T_grid[i,j])
+    flat = [[P_grid[i,j], T_grid[i,j]]
              for i in range(P_grid.shape[0])
-             for j in range(P_grid.shape[1])]
+             for j in range(P_grid.shape[1])] 
+    flat_results = np.zeros(len(flat), dtype=int)
+    tasks = [(i,*flat[i]) for i in range(len(flat))]
+    print(tasks[0])
 
-    func = partial(worker_task, odes=odes, pstable=pstable, stable=stable, gaps=gaps, eps=eps)
-
+    func = partial(worker_task, odes=odes, gaps=gaps)
     with Pool(os.cpu_count()) as pool:
         # Use imap_unordered for faster results and tqdm for progress
-        for i, (row, col, code) in enumerate(tqdm(pool.imap_unordered(func, tasks), total=len(tasks))):
-            results[row, col] = code
-
+        for _, (i,p0,t0,code) in enumerate(tqdm(pool.imap_unordered(func, tasks), total=len(tasks))):
+            flat_results[i] = code
+    results=flat_results.reshape(P_grid.shape)
     return results
 
 def make_plot_egbert(P,T,func_cover_derivative,func_precipitation_derivative,xlabel=None,ylabel=None,title=None,figsize=None):
@@ -687,28 +696,6 @@ if __name__ == '__main__':
 # MONTE CARLO #
 # -----------------------------------------------------------
 
-def worker_task_mc(args, odes, gaps):
-    """
-    Hilfsfunktion für einen einzelnen Simulations-Schritt (für Parallelisierung).
-    Nutzt einfache Schwellenwerte (Gaps) zur Klassifizierung.
-    """
-    i, P0, T0 = args
-    
-    # Simulation: Wir integrieren lange genug (t=1000), um das Gleichgewicht zu finden
-    sol = odeint(func=odes, y0=[P0, T0], t=np.linspace(0, 1000, 100))
-    final_T = sol[-1, 1]
-    
-    # Klassifizierung anhand der Gaps
-    # Code 1: No Tree, Code 2: Savanna, Code 3: Forest
-    if final_T < gaps[0]:
-        code = 1
-    elif final_T < gaps[1]:
-        code = 2
-    else:
-        code = 3
-        
-    return (P0, T0, code)
-
 def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file=None, figsize=(12, 6)):
     """
     Führt die MC-Simulation aus und erstellt den Plot (Karte + Statistik).
@@ -716,6 +703,9 @@ def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file
     print(f"Starte Monte Carlo Simulation mit {N_samples} Punkten...")
     
     # 1. Zufällige Startpunkte generieren
+    # random_P = np.random.normal(loc=(bounds_P[0]+bounds_P[1])/2, scale=0.8, size=N_samples)
+    # random_T = np.random.normal(loc=(bounds_T[0]+bounds_T[1])/2, scale=15, size=N_samples)
+
     random_P = np.random.uniform(bounds_P[0], bounds_P[1], N_samples)
     random_T = np.random.uniform(bounds_T[0], bounds_T[1], N_samples)
     
@@ -723,13 +713,13 @@ def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file
     
     # 2. Parallel rechnen
     # Wir übergeben 'odes' und 'gaps' mit partial
-    func = partial(worker_task_mc, odes=odes, gaps=gaps)
+    func = partial(worker_task, odes=odes, gaps=gaps)
     
     results = []
     # Nutzt alle verfügbaren Kerne
     with Pool(os.cpu_count()) as pool:
         # tqdm zeigt einen Ladebalken, falls gewünscht
-        for res in tqdm(pool.imap_unordered(func, tasks), total=N_samples, desc="MC Sampling"):
+        for (_,*res) in tqdm(pool.imap_unordered(func, tasks), total=N_samples, desc="MC Sampling"):
             results.append(res)
             
     # Ergebnisse entpacken
@@ -800,7 +790,7 @@ if __name__ == '__main__':
     
     # 2. Plot erstellen
     make_plot_monte_carlo(
-        N_samples=2000,           # Anzahl der Punkte (je mehr, desto genauer)
+        N_samples=int(1e4),           # Anzahl der Punkte (je mehr, desto genauer)
         bounds_P=(0.5, 5.0),      # Bereich für Niederschlag
         bounds_T=(0, 100),        # Bereich für Baumdichte
         odes=odes,                # Deine existierende odes-Funktion
@@ -809,6 +799,6 @@ if __name__ == '__main__':
     )
     
    
-    plt.show()
+    # plt.show()
     
     
