@@ -195,7 +195,7 @@ def make_plot_basin_vs_linear_stability(A, basin_stability, linear_stability, A_
     # Markierungen
     ax1.axvline(x=A_crit, color='red', linestyle=':', linewidth=2, label=r'$A_{crit}$ (Tipping Point)')
     # ax1.text(A_crit, -0.05, r'$A_{crit}$ (Tipping Point)', color='red', ha='center', va='top', 
-    #      transform=ax1.get_xaxis_transform(), fontsize=12)
+    #       transform=ax1.get_xaxis_transform(), fontsize=12)
 
     # # --- DYNAMISCHE TEXT-PLATZIERUNG ---
     # # 1. Linear Stability Text (Blau)
@@ -397,8 +397,8 @@ def egbert_tree_cover_mixed_derivative(T,P,K=90,m_A=0.15,h_A=10,m_f=0.11,h_f=64,
     T=np.asarray(T)
     P=np.asarray(P)
     # dTdt = r(P) * T * (1 - T/K) - m_A * T * h_A / (T+h_A)
-    dTdt = (r(P) *  (1 - T/K) 
-            - m_A *  h_A / (T+h_A) * (1 - T/(T+h_A))
+    dTdt = (r(P) * (1 - T/K) 
+            - m_A * h_A / (T+h_A) * (1 - T/(T+h_A))
             - m_f  * h_f**p / (h_f**p+T**p)) * (1 - p*T**p/(h_f**p+T**p))
     return dTdt
 
@@ -600,31 +600,9 @@ def make_plot_egbert(P,T,func_cover_derivative,func_precipitation_derivative,xla
     bounds = [0,1,2,3,4]  
     norm = matplotlib.colors.BoundaryNorm(bounds, cmap.N)
     ax.pcolormesh(PP_fine, TT_fine, Basin, cmap=cmap, norm=norm, shading='auto', alpha=0.8)
-    # for p0 in np.linspace(P[0],P[-1],len(P)*2)
-    #     for t0 in np.linspace(T[0],T[-1],len(T)*2):
-    #         sol = odeint(func=odes, y0=[p0,t0], t=np.linspace(0,1000,100))
-    #         # plt.plot(sol[:,0], sol[:,1], label=f'start={[4,0.2]}',color='pink')
-    #         mask = (pstable >= sol[-1, 0] - eps) & (pstable <= sol[-1, 0] + eps) 
-            
-            
-    #         # print(values_in_gaps)
-    #         if np.any(np.abs(stable[mask] - sol[-1, 1]) <= eps):
-    #             if sol[-1,1]<values_in_gaps[0]:
-    #                 color='black'
-    #             elif sol[-1,1]<values_in_gaps[1]:
-    #                 color='magenta'
-    #             else:
-    #                 color='cyan'
-                    
-    #         else: color='white'
-    #         ax.scatter(p0,t0, s=80, color=color, alpha=1.0)
-
+    
     ax.quiver(PP,TT, Direction_P/4.5, Direction_T/100,color='white', alpha=1.0, pivot='mid',)       
-    # for ptest in np.linspace(P[0],P[-1],len(P)*refinment):
-    #     print(ptest)
-    #     roottest=findroots(ptest,partial(func_cover_derivative,P=ptest))
-    #     
-    # ax.invert_xaxis()
+    
     ax.set_xlabel(r'Precipitation $(mm d^{-1})$')
     ax.set_ylabel(r'Tree Cover')
     for p0 in np.linspace(0.5,5,40):
@@ -641,41 +619,16 @@ def make_plot_egbert(P,T,func_cover_derivative,func_precipitation_derivative,xla
     ax.scatter(pstable,stable,color='black',s=20,zorder=100)
     ax.scatter(punstable,unstable,color='white',s=20,zorder=101)
 
+    
     legend_handles = [
-        matplotlib.patches.Patch(color=cmap.colors[1], label=f"No Tree State {(100*np.count_nonzero(Basin == 1)/Basin.size):.1f}%"),
-        matplotlib.patches.Patch(color=cmap.colors[2], label=f"Savanna State {(100*np.count_nonzero(Basin == 2)/Basin.size):.1f}%"),
-        matplotlib.patches.Patch(color=cmap.colors[3], label=f"Forest State {(100*np.count_nonzero(Basin == 3)/Basin.size):.1f}%")
+        matplotlib.patches.Patch(color=cmap.colors[1], label="No Tree State"),
+        matplotlib.patches.Patch(color=cmap.colors[2], label="Savanna State"),
+        matplotlib.patches.Patch(color=cmap.colors[3], label="Forest State")
     ]
     ax.legend(handles=legend_handles, loc="upper left", framealpha=0.8)
     
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-    values=[np.count_nonzero(Basin == i)/Basin.size for i in range(1,4)]
-    labels=['No Tree State','Savanna State','Forest State']
-    colors=cmap.colors[1:4]
-    axins = inset_axes(
-        ax,
-        width="40%",      # relative to parent
-        height="40%",
-        loc="lower right",
-        borderpad=0
-    )
+   
     
-    from matplotlib.patches import FancyBboxPatch
-
-    
-
-    axins.pie(
-        values,
-        colors=colors,
-        startangle=90,
-        wedgeprops=dict(edgecolor="white"),
-        autopct=lambda pct: f"{pct:.1f}%" if pct > 0 else "",
-        textprops=dict(color="white", fontsize=9)
-    )
-
-    axins.set_aspect("equal")
-
-    # fig.tight_layout()
     return fig,ax
 
 P_min, P_max = 0.5, 5.0
@@ -690,7 +643,7 @@ if __name__ == '__main__':
                         func_precipitation_derivative=egbert_precipitation_cover_derivative,
                         figsize=(10,8),
                         )
-    fig.savefig('results/tests.png', dpi=300)
+    fig.savefig('results/grid_scan.png', dpi=300)
     plt.close()
 
 # MONTE CARLO #
@@ -743,7 +696,7 @@ def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file
     
     ax_map.set_xlabel(r'Precipitation $P$ ($mm d^{-1}$)')
     ax_map.set_ylabel(r'Tree Cover $T$')
-    ax_map.set_title(f'Monte Carlo Stabilitäts-Check (N={N_samples})')
+    ax_map.set_title(f'Monte Carlo Estimation (N={N_samples})')
     ax_map.set_xlim(bounds_P)
     ax_map.set_ylim(bounds_T)
     ax_map.legend(loc='upper left')
@@ -766,7 +719,7 @@ def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file
         ax_bar.text(bar.get_x() + bar.get_width()/2, height + 0.01, 
                     f"{frac*100:.1f}%", ha='center', fontweight='bold')
     
-    ax_bar.set_ylim(0, 1.1) # Etwas Platz oben lassen
+    ax_bar.set_ylim(0, 1.1) 
     ax_bar.set_ylabel(r'Basin Stability ($S_B$)')
     ax_bar.set_title('Quantified Resilience')
     ax_bar.grid(axis='y', linestyle='--', alpha=0.5)
@@ -779,16 +732,10 @@ def make_plot_monte_carlo(N_samples, bounds_P, bounds_T, odes, gaps, output_file
     
     return fig
 if __name__ == '__main__':
-        # -----------------------------------------------
-    # Ausführung des Monte Carlo Teils
-    # -----------------------------------------------
-    
-    # 1. Wir definieren die Grenzen für die Klassifizierung (Gaps)
-    # Diese Werte kommen aus der Analyse der Nullstellen (ca. 11.5 und 61.7)
-    # Wenn du sie exakt berechnet hast, nimm deine 'values_in_gaps' Variable.
+      
     mc_gaps = [11.5, 61.7] 
     
-    # 2. Plot erstellen
+    
     make_plot_monte_carlo(
         N_samples=int(1e4),           # Anzahl der Punkte (je mehr, desto genauer)
         bounds_P=(0.5, 5.0),      # Bereich für Niederschlag
@@ -797,8 +744,4 @@ if __name__ == '__main__':
         gaps=mc_gaps,             # Die Schwellenwerte
         output_file="results/monte_carlo_resilience.png"
     )
-    
-   
-    # plt.show()
-    
     

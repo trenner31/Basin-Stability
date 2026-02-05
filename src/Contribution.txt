@@ -1,0 +1,54 @@
+AUTHOR CONTRIBUTION STATEMENT
+=============================
+
+Project: Quantifying Resilience in the Amazon Rainforest
+Authors: Theresa Wenzel, Tim Renner
+Date:    February 10, 2026
+
+1. GENERAL STATEMENT
+--------------------
+Theresa Wenzel and Tim Renner contributed equally to the research project. 
+The workload was balanced, with tasks distributed according to individual 
+strengths. The conceptualization, code review, and interpretation of results 
+were conducted collaboratively.
+
+2. DETAILED CONTRIBUTIONS
+-------------------------
+
+A) Conceptualization & Literature
+   - T. Renner: Conducted the extended literature review and identified 
+     the coupled vegetation-atmosphere model (Van Nes et al., 2014) as 
+     the theoretical basis for the complex simulation.
+   - T. Wenzel: Defined the project goals and developed the comparative 
+     framework between Linear Stability and Basin Stability concepts.
+
+B) Software Implementation & Data Visualization
+   The Python codebase was developed in complementary modules. Both authors 
+   were involved in implementing the ODE solvers and interpreting the 
+   model dynamics.
+   
+   - T. Wenzel: 
+     Responsible for the "Monte Carlo Basin Estimation" module. She implemented 
+     the statistical sampling algorithm, the parallelization logic, and the 
+     visualizations comparing Linear vs. Basin Stability.
+     
+   - T. Renner: 
+     Responsible for the high-resolution "Grid Scan" (Ground Truth) and 
+     visualizing the system trajectories. He also performed the final code 
+     refactoring and cleanup to ensure a structured project repository.
+     
+   - Joint Work: 
+     Debugging the differential equations, fine-tuning the plotting parameters, 
+     and the physical interpretation of the hysteresis effects.
+
+C) Documentation & Presentation
+   - T. Wenzel: Took the lead in designing the presentation storyline, 
+     implementing the LaTeX slide deck, and writing the technical 
+     documentation (README).
+   - T. Renner: Contributed to the scientific phrasing of the results 
+     and the final proofreading of the project deliverables.
+
+-------------------------
+Signatures:
+
+Theresa Wenzel          Tim Renner
