@@ -14,7 +14,7 @@ The core of the project is the implementation and comparison of two models:
 * **Conceptual Model (Menck et al., 2013):** A bistable 1D-model driven by aridity.
 * **Coupled Model (Van Nes et al., 2014):** A complex model including vegetation-atmosphere feedback, showing tristability (Forest, Savanna, Treeless).
 
-We chose a **Monte Carlo approach** because a full grid scan of the coupled model became computationally infeasible at higher resolutions.
+We chose a **Monte Carlo approach** because a full grid scan of the coupled model became computationally infeasible at higher resolutions. This also allows more efficient computation if the model gets expanded to include more variables.
 
 
 ## 2. Project Structure
